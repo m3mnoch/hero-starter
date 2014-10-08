@@ -36,11 +36,12 @@ var enemyMoveFunction = function(gameData, helpers) {
 var game = new Game(5);
 
 //Add a health well in the middle of the board
+game.addHealthWell(1,3);
 game.addHealthWell(2,2);
 
 //Add diamond mines on either side of the health well
-game.addDiamondMine(2,1);
-game.addDiamondMine(2,3);
+game.addDiamondMine(1,4);
+game.addDiamondMine(3,4);
 
 //Add your hero in the top left corner of the map (team 0)
 game.addHero(0, 0, 'MyHero', 0);
@@ -56,7 +57,7 @@ console.log('About to start the game!  Here is what the board looks like:');
 game.board.inspect();
 
 //Play a very short practice game
-var turnsToPlay = 15;
+var turnsToPlay = 25;
 
 for (var i=0; i<turnsToPlay; i++) {
   var hero = game.activeHero;
