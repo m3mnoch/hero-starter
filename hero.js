@@ -142,9 +142,103 @@ var move = function(gameData, helpers) {
 
 var move = function(gameData, helpers) {
 	var myHero = gameData.activeHero;
+	if (myHero.enemies === undefined) {
+		myHero.enemies = {};
+		myHero.myCurrentEnemy = "";
+		console.log("created enemy tracker");
+	}
 
-	// NOTE:  coords are (top,left)
+	// default priority is diamond hunting
+	var currentPriority = helpers.findNearestNonTeamDiamondMine(gameData);
+	var priorities = {
+		enemy:"stay",
+		health:"stay",
+		intercept:"stay",
+		diamond: currentPriority
+	}
 
+	// are we hurt?
+	var painThreshold = 41;
+
+	// always heal if we're hurt badly.
+	if (myHero.health < painThreshold) {
+		priorities.health = helpers.findNearestHealthWell(gameData);
+
+	// if we're hurt AND next to the well, just fill 'er up!
+	} else if (myHero.health < 100 && helpers.objectNextToTile({distanceFromLeft:helpers.myBase[1],distanceFromTop:helpers.myBase[0]}, myHero)){
+		priorities.health = helpers.findNearestHealthWell(gameData);
+
+	}
+	
+
+	helpers.prepPathData(gameData);
+	helpers.findBase(gameData);
+
+	var myPath = helpers.findPath(helpers.pathData, [myHero.distanceFromTop, myHero.distanceFromLeft], helpers.myBase);
+	for (var i=0; i< myPath.length; i++) {
+		//console.log('--- node: (' + myPath[i][0] + "," + myPath[i][1] + ")");
+	}
+
+	var enemyPath = [];
+	var enemyPathTurnCount = 5; // we only care about them if they can get to our base within 5 turns.
+
+	// see if i can beat the badguys who might push up on my well, yo.
+	for (var i=0; i< gameData.heroes.length; i++) {
+		if (gameData.heroes[i].team !== myHero.team) {
+			var worthMyTime = true;
+
+			if (myHero.enemies[gameData.heroes[i].name] === undefined) {
+				console.log('tracking enemy: ' + gameData.heroes[i].name);
+				myHero.enemies[gameData.heroes[i].name] = {lastX:-1,lastY:-1};
+			}
+
+			// avoid jerks who just sit there and heal.
+			if (myHero.enemies[gameData.heroes[i].name].lastX == gameData.heroes[i].distanceFromLeft && myHero.enemies[gameData.heroes[i].name].lastY == gameData.heroes[i].distanceFromTop) {
+				// they've not moved and are sitting next to my well.
+				if (helpers.objectNextToTile({distanceFromLeft:helpers.myBase[1],distanceFromTop:helpers.myBase[0]}, gameData.heroes[i])) {
+					worthMyTime = false;
+				}
+			}
+			
+			if (worthMyTime) {
+				enemyPreviousPath = helpers.findPath(helpers.pathData, [myHero.enemies[gameData.heroes[i].name].lastY, myHero.enemies[gameData.heroes[i].name].lastX], helpers.myBase);
+				enemyCurrentPath = helpers.findPath(helpers.pathData, [gameData.heroes[i].distanceFromTop, gameData.heroes[i].distanceFromLeft], helpers.myBase);
+				console.log('enemy path nodes: ' + enemyCurrentPath.length);
+
+				if (enemyCurrentPath.length > 0 && enemyCurrentPath.length < enemyPathTurnCount) {
+					// closest badguy!  see if we can get there in time.
+					enemyPathTurnCount = enemyCurrentPath.length;
+
+					var enemyBackwardsPathDest = [enemyCurrentPath[enemyCurrentPath.length - 1][1], enemyCurrentPath[enemyCurrentPath.length - 1][0]];
+					console.log('enemy assumed path target: ' + enemyBackwardsPathDest);
+					myPath = helpers.findPath(helpers.pathData, [myHero.distanceFromTop, myHero.distanceFromLeft], enemyBackwardsPathDest);
+
+					myHero.myCurrentEnemy = gameData.heroes[i].name;
+					priorities.intercept = helpers.findDir([myHero.distanceFromLeft, myHero.distanceFromTop], myPath[0]);
+
+					// it's a badguy!  and he's right next to me!  nuke him!
+					if (helpers.objectNextToTile(myHero, gameData.heroes[i]) && !gameData.heroes[i].dead) {
+						priorities.enemy = helpers.findNearestEnemy(gameData);
+					}
+				}
+			}
+
+			myHero.enemies[gameData.heroes[i].name].lastX = gameData.heroes[i].distanceFromLeft;
+			myHero.enemies[gameData.heroes[i].name].lastY = gameData.heroes[i].distanceFromTop;
+		}
+	}
+
+/*
+	var myDir = "stay";
+	if (myPath.length > 0) {
+		myDir = helpers.findDir([myHero.distanceFromLeft, myHero.distanceFromTop], myPath[0]);
+	}
+*/
+
+
+
+
+/*
 	var myTargetWellData = helpers.findNearestHealthWellData(gameData);
 	var myTargetDiamondMineData = helpers.findNearestUnownedDiamondMineData(gameData);
 	var targetDiamondMineDist = 99999;
@@ -156,6 +250,7 @@ var move = function(gameData, helpers) {
 			myTargetDiamondMineData = testDiamondMine;
 		}
 	}
+*/
 
 	/*
 	console.log('====================');
@@ -165,12 +260,37 @@ var move = function(gameData, helpers) {
 	*/
 	//return "stay";
 
-	if (myHero.health < 60) {
+/*
+	// danger!
+	if (myHero.health < painThreshold) {
 		return helpers.findNearestHealthWell(gameData);
-	} else {
+
+	// always at least try to beat someone up.
+	} else if (myDir == "stay") {
 		var myDir = helpers.findNearestEnemy(gameData);
-		return myDir;
 	}
+*/
+	
+	var myDir = "stay";
+
+	if (priorities.health != "stay") {
+		console.log("--- priority: HEALTH");
+		myDir = priorities.health;
+
+	} else if (priorities.enemy != "stay") {
+		console.log("--- priority: ENEMY");
+		myDir = priorities.enemy;
+
+	} else if (priorities.intercept != "stay") {
+		console.log("--- priority: INTERCEPT");
+		myDir = priorities.intercept;
+
+	} else if (priorities.diamond != "stay") {
+		console.log("--- priority: DIAMOND");
+		myDir = priorities.diamond;
+	}
+
+	return myDir;
 };
 
 // Export the move function here

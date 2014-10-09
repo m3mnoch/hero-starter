@@ -1,9 +1,71 @@
 var helpers = {};
 
+helpers.myBase = []; // the coords of the healthwell base
+helpers.pathData = []; // just a 2-dimensional array for pathfinding calcs.  true x,y coords.
+
+
+helpers.findBase = function(gameData) {
+	var nearestHealthWell = helpers.findNearestHealthWellData(gameData);
+	helpers.myBase = nearestHealthWell.coords;
+};
+
+helpers.objectInTileRadius = function(sourceTile, destTile, radius) {
+	var isInRadius = true;
+	if (Math.abs(sourceTile.distanceFromTop - destTile.distanceFromTop) > radius) isInRadius = false;
+	if (Math.abs(sourceTile.distanceFromLeft - destTile.distanceFromLeft) > radius) isInRadius = false;
+	return isInRadius;
+};
+
+helpers.objectNextToTile = function(sourceTile, destTile) {
+	var isNextToTile = true;
+	if (Math.abs(sourceTile.distanceFromTop - destTile.distanceFromTop) + Math.abs(sourceTile.distanceFromLeft - destTile.distanceFromLeft) != 1) isNextToTile = false;
+	return isNextToTile;
+};
+
+helpers.prepPathData = function(gameData) {
+	helpers.pathData = [];
+	for (var i=0; i<gameData.board.lengthOfSide; i++) {
+		helpers.pathData[i] = [];
+		for (var j=0; j<gameData.board.lengthOfSide; j++) {
+			helpers.pathData[i][j] = 0;
+		}
+	}
+
+	// it's really irritating that all these coords are backwards -- as in: [y, x]
+	for (var i=0; i< gameData.heroes.length; i++) {
+		helpers.pathData[gameData.heroes[i].distanceFromLeft][gameData.heroes[i].distanceFromTop] = 1;
+	}
+	for (var i=0; i< gameData.diamondMines.length; i++) {
+		helpers.pathData[gameData.diamondMines[i].distanceFromLeft][gameData.diamondMines[i].distanceFromTop] = 1;
+	}
+	for (var i=0; i< gameData.healthWells.length; i++) {
+		helpers.pathData[gameData.healthWells[i].distanceFromLeft][gameData.healthWells[i].distanceFromTop] = 1;
+	}
+	for (var i=0; i< gameData.impassables.length; i++) {
+		helpers.pathData[gameData.impassables[i].distanceFromLeft][gameData.impassables[i].distanceFromTop] = 1;
+	}
+};
+
+// true x,y coords
+helpers.findDir = function(sourceCoords, destCoords) {
+	var myDir = "stay";
+	if (sourceCoords[0] < destCoords[0]) {
+		myDir = "East";
+	} else if (sourceCoords[0] > destCoords[0]) {
+		myDir = "West";
+	} else if (sourceCoords[1] < destCoords[1]) {
+		myDir = "South";
+	} else if (sourceCoords[1] > destCoords[1]) {
+		myDir = "North";
+	}
+	return myDir;
+};
+
+
 // Returns false if the given coordinates are out of range
 helpers.validCoordinates = function(board, distanceFromTop, distanceFromLeft) {
-  return (!(distanceFromTop < 0 || distanceFromLeft < 0 ||
-      distanceFromTop > board.lengthOfSide - 1 || distanceFromLeft > board.lengthOfSide - 1));
+	return (!(distanceFromTop < 0 || distanceFromLeft < 0 ||
+		distanceFromTop > board.lengthOfSide - 1 || distanceFromLeft > board.lengthOfSide - 1));
 };
 
 // Returns the tile [direction] (North, South, East, or West) of the given X/Y coordinate
@@ -15,22 +77,22 @@ helpers.getTileNearby = function(board, distanceFromTop, distanceFromLeft, direc
 
   // This associates the cardinal directions with an X or Y coordinate
   if (direction === 'North') {
-    fromTopNew -= 1;
+  	fromTopNew -= 1;
   } else if (direction === 'East') {
-    fromLeftNew += 1;
+  	fromLeftNew += 1;
   } else if (direction === 'South') {
-    fromTopNew += 1;
+  	fromTopNew += 1;
   } else if (direction === 'West') {
-    fromLeftNew -= 1;
+  	fromLeftNew -= 1;
   } else {
-    return false;
+  	return false;
   }
 
   // If the coordinates of the tile nearby are valid, return the tile object at those coordinates
   if (helpers.validCoordinates(board, fromTopNew, fromLeftNew)) {
-    return board.tiles[fromTopNew][fromLeftNew];
+  	return board.tiles[fromTopNew][fromLeftNew];
   } else {
-    return false;
+  	return false;
   }
 };
 
@@ -58,85 +120,85 @@ helpers.findNearestObjectDirectionAndDistance = function(board, fromTile, tileCa
   // While the queue has a length
   while (queue.length > 0) {
 
-    // Shift off first item in queue
-    var coords = queue.shift();
+	// Shift off first item in queue
+	var coords = queue.shift();
 
-    // Reset the coordinates to the shifted object's coordinates
-    var dft = coords[0];
-    var dfl = coords[1];
+	// Reset the coordinates to the shifted object's coordinates
+	var dft = coords[0];
+	var dfl = coords[1];
 
-    // Loop through cardinal directions
-    var directions = ['North', 'East', 'South', 'West'];
-    for (var i = 0; i < directions.length; i++) {
+	// Loop through cardinal directions
+	var directions = ['North', 'East', 'South', 'West'];
+	for (var i = 0; i < directions.length; i++) {
 
-      // For each of the cardinal directions get the next tile...
-      var direction = directions[i];
+	  // For each of the cardinal directions get the next tile...
+	  var direction = directions[i];
 
-      // ...Use the getTileNearby helper method to do this
-      var nextTile = helpers.getTileNearby(board, dft, dfl, direction);
+	  // ...Use the getTileNearby helper method to do this
+	  var nextTile = helpers.getTileNearby(board, dft, dfl, direction);
 
-      // If nextTile is a valid location to move...
-      if (nextTile) {
+	  // If nextTile is a valid location to move...
+	  if (nextTile) {
 
-        // Assign a key variable the nextTile's coordinates to put into our visited object later
-        var key = nextTile.distanceFromTop + '|' + nextTile.distanceFromLeft;
+		// Assign a key variable the nextTile's coordinates to put into our visited object later
+		var key = nextTile.distanceFromTop + '|' + nextTile.distanceFromLeft;
 
-        var isGoalTile = false;
-        try {
-          isGoalTile = tileCallback(nextTile);
-        } catch(err) {
-          isGoalTile = false;
-        }
+		var isGoalTile = false;
+		try {
+			isGoalTile = tileCallback(nextTile);
+		} catch(err) {
+			isGoalTile = false;
+		}
 
-        // If we have visited this tile before
-        if (visited.hasOwnProperty(key)) {
+		// If we have visited this tile before
+		if (visited.hasOwnProperty(key)) {
 
-          //Do nothing--this tile has already been visited
+		  //Do nothing--this tile has already been visited
 
-        //Is this tile the one we want?
-        } else if (isGoalTile) {
+		//Is this tile the one we want?
+	} else if (isGoalTile) {
 
-          // This variable will eventually hold the first direction we went on this path
-          var correctDirection = direction;
+		  // This variable will eventually hold the first direction we went on this path
+		  var correctDirection = direction;
 
-          // This is the distance away from the final destination that will be incremented in a bit
-          var distance = 1;
+		  // This is the distance away from the final destination that will be incremented in a bit
+		  var distance = 1;
 
-          // These are the coordinates of our target tileType
-          var finalCoords = [nextTile.distanceFromTop, nextTile.distanceFromLeft];
+		  // These are the coordinates of our target tileType
+		  var finalCoords = [nextTile.distanceFromTop, nextTile.distanceFromLeft];
 
-          // Loop back through path until we get to the start
-          while (coords[3] !== 'START') {
+		  // Loop back through path until we get to the start
+		  while (coords[3] !== 'START') {
 
-            // Haven't found the start yet, so go to previous location
-            correctDirection = coords[2];
+			// Haven't found the start yet, so go to previous location
+			correctDirection = coords[2];
 
-            // We also need to increment the distance
-            distance++;
+			// We also need to increment the distance
+			distance++;
 
-            // And update the coords of our current path
-            coords = coords[3];
-          }
+			// And update the coords of our current path
+			coords = coords[3];
+		}
 
-          //Return object with the following pertinent info
-          return {
-            object: nextTile,
-            direction: correctDirection,
-            distance: distance,
-            coords: finalCoords
-          };
+		  //Return object with the following pertinent info
+		  return {
+		  	object: nextTile,
+		  	direction: correctDirection,
+		  	distance: distance,
+		  	coords: finalCoords
+		  };
 
-          // If the tile is unoccupied, then we need to push it into our queue
-        } else if (nextTile.type === 'Unoccupied') {
+		  // If the tile is unoccupied, then we need to push it into our queue
+		} else if (nextTile.type === 'Unoccupied') {
 
-          queue.push([nextTile.distanceFromTop, nextTile.distanceFromLeft, direction, coords]);
+			queue.push([nextTile.distanceFromTop, nextTile.distanceFromLeft, direction, coords]);
 
-          // Give the visited object another key with the value we stored earlier
-          visited[key] = true;
-        }
-      }
-    }
-  }
+		  // Give the visited object another key with the value we stored earlier
+		  visited[key] = true;
+		}
+	}
+}
+}
 
   // If we are blocked and there is no way to get where we want to go, return false
   return false;
@@ -144,39 +206,39 @@ helpers.findNearestObjectDirectionAndDistance = function(board, fromTile, tileCa
 
 // Returns the direction of the nearest non-team diamond mine or false, if there are no diamond mines
 helpers.findNearestNonTeamDiamondMine = function(gameData) {
-  var hero = gameData.activeHero;
-  var board = gameData.board;
+	var hero = gameData.activeHero;
+	var board = gameData.board;
 
   //Get the path info object
   var pathInfoObject = helpers.findNearestObjectDirectionAndDistance(board, hero, function(mineTile) {
-    if (mineTile.type === 'DiamondMine') {
-      if (mineTile.owner) {
-        return mineTile.owner.team !== hero.team;
-      } else {
-        return true;
-      }
-    } else {
-      return false;
-    }
+  	if (mineTile.type === 'DiamondMine') {
+  		if (mineTile.owner) {
+  			return mineTile.owner.team !== hero.team;
+  		} else {
+  			return true;
+  		}
+  	} else {
+  		return false;
+  	}
   }, board);
 
   //Return the direction that needs to be taken to achieve the goal
   return pathInfoObject.direction;
 };
 
-// Returns the direction of the nearest non-team diamond mine or false, if there are no diamond mines
+// Returns the nearest non-team diamond mine or false, if there are no diamond mines
 helpers.findNearestNonTeamDiamondMineFromObject = function(hero, sourceObject, board) {
   //Get the path info object
   var pathInfoObject = helpers.findNearestObjectDirectionAndDistance(board, sourceObject, function(mineTile) {
-    if (mineTile.type === 'DiamondMine') {
-      if (mineTile.owner) {
-        return mineTile.owner.team !== hero.team;
-      } else {
-        return true;
-      }
-    } else {
-      return false;
-    }
+  	if (mineTile.type === 'DiamondMine') {
+  		if (mineTile.owner) {
+  			return mineTile.owner.team !== hero.team;
+  		} else {
+  			return true;
+  		}
+  	} else {
+  		return false;
+  	}
   }, board);
 
   //Return the direction that needs to be taken to achieve the goal
@@ -185,20 +247,20 @@ helpers.findNearestNonTeamDiamondMineFromObject = function(hero, sourceObject, b
 
 // Returns the nearest unowned diamond mine or false, if there are no diamond mines
 helpers.findNearestUnownedDiamondMine = function(gameData) {
-  var hero = gameData.activeHero;
-  var board = gameData.board;
+	var hero = gameData.activeHero;
+	var board = gameData.board;
 
   //Get the path info object
   var pathInfoObject = helpers.findNearestObjectDirectionAndDistance(board, hero, function(mineTile) {
-    if (mineTile.type === 'DiamondMine') {
-      if (mineTile.owner) {
-        return mineTile.owner.id !== hero.id;
-      } else {
-        return true;
-      }
-    } else {
-      return false;
-    }
+  	if (mineTile.type === 'DiamondMine') {
+  		if (mineTile.owner) {
+  			return mineTile.owner.id !== hero.id;
+  		} else {
+  			return true;
+  		}
+  	} else {
+  		return false;
+  	}
   });
 
   //Return the direction that needs to be taken to achieve the goal
@@ -207,20 +269,20 @@ helpers.findNearestUnownedDiamondMine = function(gameData) {
 
 // Returns the nearest unowned diamond mine or false, if there are no diamond mines
 helpers.findNearestUnownedDiamondMineData = function(gameData) {
-  var hero = gameData.activeHero;
-  var board = gameData.board;
+	var hero = gameData.activeHero;
+	var board = gameData.board;
 
   //Get the path info object
   var pathInfoObject = helpers.findNearestObjectDirectionAndDistance(board, hero, function(mineTile) {
-    if (mineTile.type === 'DiamondMine') {
-      if (mineTile.owner) {
-        return mineTile.owner.id !== hero.id;
-      } else {
-        return true;
-      }
-    } else {
-      return false;
-    }
+  	if (mineTile.type === 'DiamondMine') {
+  		if (mineTile.owner) {
+  			return mineTile.owner.id !== hero.id;
+  		} else {
+  			return true;
+  		}
+  	} else {
+  		return false;
+  	}
   });
 
   //Return the direction that needs to be taken to achieve the goal
@@ -229,12 +291,12 @@ helpers.findNearestUnownedDiamondMineData = function(gameData) {
 
 // Returns the nearest health well or false, if there are no health wells
 helpers.findNearestHealthWell = function(gameData) {
-  var hero = gameData.activeHero;
-  var board = gameData.board;
+	var hero = gameData.activeHero;
+	var board = gameData.board;
 
   //Get the path info object
   var pathInfoObject = helpers.findNearestObjectDirectionAndDistance(board, hero, function(healthWellTile) {
-    return healthWellTile.type === 'HealthWell';
+  	return healthWellTile.type === 'HealthWell';
   });
 
   //Return the direction that needs to be taken to achieve the goal
@@ -243,12 +305,12 @@ helpers.findNearestHealthWell = function(gameData) {
 
 // Returns the nearest health well or false, if there are no health wells
 helpers.findNearestHealthWellData = function(gameData) {
-  var hero = gameData.activeHero;
-  var board = gameData.board;
+	var hero = gameData.activeHero;
+	var board = gameData.board;
 
   //Get the path info object
   var pathInfoObject = helpers.findNearestObjectDirectionAndDistance(board, hero, function(healthWellTile) {
-    return healthWellTile.type === 'HealthWell';
+  	return healthWellTile.type === 'HealthWell';
   });
 
   //Return the direction that needs to be taken to achieve the goal
@@ -258,12 +320,12 @@ helpers.findNearestHealthWellData = function(gameData) {
 // Returns the direction of the nearest enemy with lower health
 // (or returns false if there are no accessible enemies that fit this description)
 helpers.findNearestWeakerEnemy = function(gameData) {
-  var hero = gameData.activeHero;
-  var board = gameData.board;
+	var hero = gameData.activeHero;
+	var board = gameData.board;
 
   //Get the path info object
   var pathInfoObject = helpers.findNearestObjectDirectionAndDistance(board, hero, function(enemyTile) {
-    return enemyTile.type === 'Hero' && enemyTile.team !== hero.team && enemyTile.health < hero.health;
+  	return enemyTile.type === 'Hero' && enemyTile.team !== hero.team && enemyTile.health < hero.health;
   });
 
   //Return the direction that needs to be taken to achieve the goal
@@ -275,12 +337,12 @@ helpers.findNearestWeakerEnemy = function(gameData) {
 // Returns the direction of the nearest enemy
 // (or returns false if there are no accessible enemies)
 helpers.findNearestEnemy = function(gameData) {
-  var hero = gameData.activeHero;
-  var board = gameData.board;
+	var hero = gameData.activeHero;
+	var board = gameData.board;
 
   //Get the path info object
   var pathInfoObject = helpers.findNearestObjectDirectionAndDistance(board, hero, function(enemyTile) {
-    return enemyTile.type === 'Hero' && enemyTile.team !== hero.team
+  	return enemyTile.type === 'Hero' && enemyTile.team !== hero.team
   });
 
   //Return the direction that needs to be taken to achieve the goal
@@ -290,12 +352,12 @@ helpers.findNearestEnemy = function(gameData) {
 // Returns the direction of the nearest friendly champion
 // (or returns false if there are no accessible friendly champions)
 helpers.findNearestTeamMember = function(gameData) {
-  var hero = gameData.activeHero;
-  var board = gameData.board;
+	var hero = gameData.activeHero;
+	var board = gameData.board;
 
   //Get the path info object
   var pathInfoObject = helpers.findNearestObjectDirectionAndDistance(board, hero, function(heroTile) {
-    return heroTile.type === 'Hero' && heroTile.team === hero.team;
+  	return heroTile.type === 'Hero' && heroTile.team === hero.team;
   });
 
   //Return the direction that needs to be taken to achieve the goal
@@ -305,8 +367,16 @@ helpers.findNearestTeamMember = function(gameData) {
 
 // world is a 2d array of integers (eg world[10][15] = 0)
 // pathStart and pathEnd are arrays like [5,10]
-helpers.findPath = function (world, pathStart, pathEnd)
+// returns an array of true coords.
+helpers.findPath = function (world, backwardsCoordsStart, backwardsCoordsEnd)
 {
+  // fixing the backwards coords.
+  var pathStart = [backwardsCoordsStart[1],backwardsCoordsStart[0]];
+  var pathEnd = [backwardsCoordsEnd[1],backwardsCoordsEnd[0]];
+
+  //console.log("pathStart: " + pathStart);
+  //console.log("pathEnd: " + pathEnd);
+
   // shortcuts for speed
   var abs = Math.abs;
   var max = Math.max;
@@ -320,12 +390,14 @@ helpers.findPath = function (world, pathStart, pathEnd)
   var maxWalkableTileNum = 0;
 
   // keep track of the world dimensions
-    // Note that this A-star implementation expects the world array to be square: 
+	// Note that this A-star implementation expects the world array to be square: 
   // it must have equal height and width. If your game world is rectangular, 
   // just fill the array with dummy values to pad the empty space.
   var worldWidth = world[0].length;
   var worldHeight = world.length;
   var worldSize = worldWidth * worldHeight;
+
+  //console.log("worldSize: " + worldSize);
 
   // which heuristic should we use?
   // default: no diagonals (Manhattan)
@@ -337,20 +409,20 @@ helpers.findPath = function (world, pathStart, pathEnd)
 
   function ManhattanDistance(Point, Goal)
   { // linear movement - no diagonals - just cardinal directions (NSEW)
-    return abs(Point.x - Goal.x) + abs(Point.y - Goal.y);
+  	return abs(Point.x - Goal.x) + abs(Point.y - Goal.y);
   }
 
   function DiagonalDistance(Point, Goal)
   { // diagonal movement - assumes diag dist is 1, same as cardinals
-    return max(abs(Point.x - Goal.x), abs(Point.y - Goal.y));
+  	return max(abs(Point.x - Goal.x), abs(Point.y - Goal.y));
   }
 
   function EuclideanDistance(Point, Goal)
   { // diagonals are considered a little farther than cardinal directions
-    // diagonal movement using Euclide (AC = sqrt(AB^2 + BC^2))
-    // where AB = x2 - x1 and BC = y2 - y1 and AC will be [x3, y3]
-    return sqrt(pow(Point.x - Goal.x, 2) + pow(Point.y - Goal.y, 2));
-  }
+	// diagonal movement using Euclide (AC = sqrt(AB^2 + BC^2))
+	// where AB = x2 - x1 and BC = y2 - y1 and AC will be [x3, y3]
+	return sqrt(pow(Point.x - Goal.x, 2) + pow(Point.y - Goal.y, 2));
+}
 
   // Neighbours functions, used by findNeighbours function
   // to locate adjacent available cells that aren't blocked
@@ -360,25 +432,25 @@ helpers.findPath = function (world, pathStart, pathEnd)
   // unless distanceFunction function is not Manhattan
   function Neighbours(x, y)
   {
-    var N = y - 1,
-    S = y + 1,
-    E = x + 1,
-    W = x - 1,
-    myN = N > -1 && canWalkHere(x, N),
-    myS = S < worldHeight && canWalkHere(x, S),
-    myE = E < worldWidth && canWalkHere(E, y),
-    myW = W > -1 && canWalkHere(W, y),
-    result = [];
-    if(myN)
-    result.push({x:x, y:N});
-    if(myE)
-    result.push({x:E, y:y});
-    if(myS)
-    result.push({x:x, y:S});
-    if(myW)
-    result.push({x:W, y:y});
-    findNeighbours(myN, myS, myE, myW, N, S, E, W, result);
-    return result;
+  	var N = y - 1,
+  	S = y + 1,
+  	E = x + 1,
+  	W = x - 1,
+  	myN = N > -1 && canWalkHere(x, N),
+  	myS = S < worldHeight && canWalkHere(x, S),
+  	myE = E < worldWidth && canWalkHere(E, y),
+  	myW = W > -1 && canWalkHere(W, y),
+  	result = [];
+  	if(myN)
+  		result.push({x:x, y:N});
+  	if(myE)
+  		result.push({x:E, y:y});
+  	if(myS)
+  		result.push({x:x, y:S});
+  	if(myW)
+  		result.push({x:W, y:y});
+  	findNeighbours(myN, myS, myE, myW, N, S, E, W, result);
+  	return result;
   }
 
   // returns every available North East, South East,
@@ -386,20 +458,20 @@ helpers.findPath = function (world, pathStart, pathEnd)
   // "cracks" between two diagonals
   function DiagonalNeighbours(myN, myS, myE, myW, N, S, E, W, result)
   {
-    if(myN)
-    {
-      if(myE && canWalkHere(E, N))
-      result.push({x:E, y:N});
-      if(myW && canWalkHere(W, N))
-      result.push({x:W, y:N});
-    }
-    if(myS)
-    {
-      if(myE && canWalkHere(E, S))
-      result.push({x:E, y:S});
-      if(myW && canWalkHere(W, S))
-      result.push({x:W, y:S});
-    }
+  	if(myN)
+  	{
+  		if(myE && canWalkHere(E, N))
+  			result.push({x:E, y:N});
+  		if(myW && canWalkHere(W, N))
+  			result.push({x:W, y:N});
+  	}
+  	if(myS)
+  	{
+  		if(myE && canWalkHere(E, S))
+  			result.push({x:E, y:S});
+  		if(myW && canWalkHere(W, S))
+  			result.push({x:W, y:S});
+  	}
   }
 
   // returns every available North East, South East,
@@ -407,139 +479,168 @@ helpers.findPath = function (world, pathStart, pathEnd)
   // you would be squeezing through a "crack"
   function DiagonalNeighboursFree(myN, myS, myE, myW, N, S, E, W, result)
   {
-    myN = N > -1;
-    myS = S < worldHeight;
-    myE = E < worldWidth;
-    myW = W > -1;
-    if(myE)
-    {
-      if(myN && canWalkHere(E, N))
-      result.push({x:E, y:N});
-      if(myS && canWalkHere(E, S))
-      result.push({x:E, y:S});
-    }
-    if(myW)
-    {
-      if(myN && canWalkHere(W, N))
-      result.push({x:W, y:N});
-      if(myS && canWalkHere(W, S))
-      result.push({x:W, y:S});
-    }
+  	myN = N > -1;
+  	myS = S < worldHeight;
+  	myE = E < worldWidth;
+  	myW = W > -1;
+  	if(myE)
+  	{
+  		if(myN && canWalkHere(E, N))
+  			result.push({x:E, y:N});
+  		if(myS && canWalkHere(E, S))
+  			result.push({x:E, y:S});
+  	}
+  	if(myW)
+  	{
+  		if(myN && canWalkHere(W, N))
+  			result.push({x:W, y:N});
+  		if(myS && canWalkHere(W, S))
+  			result.push({x:W, y:S});
+  	}
   }
 
   // returns boolean value (world cell is available and open)
   function canWalkHere(x, y)
   {
-    return ((world[x] != null) &&
-      (world[x][y] != null) &&
-      (world[x][y] <= maxWalkableTileNum));
+  	return ((world[x] != null) &&
+  		(world[x][y] != null) &&
+  		(world[x][y] <= maxWalkableTileNum));
   };
 
-  // Node function, returns a new object with Node properties
-  // Used in the calculatePath function to store route costs, etc.
-  function Node(Parent, Point)
-  {
-    var newNode = {
-      // pointer to another Node object
-      Parent:Parent,
-      // array index of this Node in the world linear array
-      value:Point.x + (Point.y * worldWidth),
-      // the location coordinates of this Node
-      x:Point.x,
-      y:Point.y,
-      // the heuristic estimated cost
-      // of an entire path using this node
-      f:0,
-      // the distanceFunction cost to get
-      // from the starting point to this node
-      g:0
-    };
+	// Node function, returns a new object with Node properties
+	// Used in the calculatePath function to store route costs, etc.
+	function Node(Parent, Point)
+	{
+		var newNode = {
+			// pointer to another Node object
+			Parent:Parent,
+			// array index of this Node in the world linear array
+			value:Point.x + (Point.y * worldWidth),
+			// the location coordinates of this Node
+			x:Point.x,
+			y:Point.y,
+			// the heuristic estimated cost
+			// of an entire path using this node
+			f:0,
+			// the distanceFunction cost to get
+			// from the starting point to this node
+			g:0
+		};
 
-    return newNode;
-  }
+		return newNode;
+	}
 
-  // Path function, executes AStar algorithm operations
-  function calculatePath()
-  {
-    // create Nodes from the Start and End x,y coordinates
-    var mypathStart = Node(null, {x:pathStart[0], y:pathStart[1]});
-    var mypathEnd = Node(null, {x:pathEnd[0], y:pathEnd[1]});
-    // create an array that will contain all world cells
-    var AStar = new Array(worldSize);
-    // list of currently open Nodes
-    var Open = [mypathStart];
-    // list of closed Nodes
-    var Closed = [];
-    // list of the final output array
-    var result = [];
-    // reference to a Node (that is nearby)
-    var myNeighbours;
-    // reference to a Node (that we are considering now)
-    var myNode;
-    // reference to a Node (that starts a path in question)
-    var myPath;
-    // temp integer variables used in the calculations
-    var length, max, min, i, j;
-    // iterate through the open list until none are left
-    while(length = Open.length)
-    {
-      max = worldSize;
-      min = -1;
-      for(i = 0; i < length; i++)
-      {
-        if(Open[i].f < max)
-        {
-          max = Open[i].f;
-          min = i;
-        }
-      }
-      // grab the next node and remove it from Open array
-      myNode = Open.splice(min, 1)[0];
-      // is it the destination node?
-      if(myNode.value === mypathEnd.value)
-      {
-        myPath = Closed[Closed.push(myNode) - 1];
-        do
-        {
-          result.push([myPath.x, myPath.y]);
-        }
-        while (myPath = myPath.Parent);
-        // clear the working arrays
-        AStar = Closed = Open = [];
-        // we want to return start to finish
-        result.reverse();
-      }
-      else // not the destination
-      {
-        // find which nearby nodes are walkable
-        myNeighbours = Neighbours(myNode.x, myNode.y);
-        // test each one that hasn't been tried already
-        for(i = 0, j = myNeighbours.length; i < j; i++)
-        {
-          myPath = Node(myNode, myNeighbours[i]);
-          if (!AStar[myPath.value])
-          {
-            // estimated cost of this particular route so far
-            myPath.g = myNode.g + distanceFunction(myNeighbours[i], myNode);
-            // estimated cost of entire guessed route to the destination
-            myPath.f = myPath.g + distanceFunction(myNeighbours[i], mypathEnd);
-            // remember this new path for testing above
-            Open.push(myPath);
-            // mark this node in the world graph as visited
-            AStar[myPath.value] = true;
-          }
-        }
-        // remember this route as having no more untested options
-        Closed.push(myNode);
-      }
-    } // keep iterating until the Open list is empty
-    return result;
-  }
+	if (world[pathEnd[0]][pathEnd[1]] == 1) {
+		// the spot we're looking to travel is occupied.  we're just going
+		// to find the closest unoccupied spot.  well, good enough anyway.
+		var tileNeighbors = Neighbours(pathEnd[0], pathEnd[1]);
+		for (var i=0; i< tileNeighbors.length; i++) {
+			tileNeighbors[i].dist = ManhattanDistance(tileNeighbors[i], {x:pathStart[0], y:pathStart[1]});
+		}
+		var newTileLoc = tileNeighbors[0];
+		for (var i=1; i< tileNeighbors.length; i++) {
+			if (tileNeighbors[i].dist < newTileLoc.dist) newTileLoc = tileNeighbors[i];
+		}
+		pathEnd[0] = newTileLoc.x;
+		pathEnd[1] = newTileLoc.y;
+	}
 
-  // actually calculate the a-star path!
-  // this returns an array of coordinates
-  // that is empty if no path is possible
-  return calculatePath();
+
+	// Path function, executes AStar algorithm operations
+	function calculatePath()
+	{
+		// create Nodes from the Start and End x,y coordinates
+		var mypathStart = Node(null, {x:pathStart[0], y:pathStart[1]});
+		var mypathEnd = Node(null, {x:pathEnd[0], y:pathEnd[1]});
+		// create an array that will contain all world cells
+		var AStar = new Array(worldSize);
+		// list of currently open Nodes
+		var Open = [mypathStart];
+		// list of closed Nodes
+		var Closed = [];
+		// list of the final output array
+		var result = [];
+		// reference to a Node (that is nearby)
+		var myNeighbours;
+		// reference to a Node (that we are considering now)
+		var myNode;
+		// reference to a Node (that starts a path in question)
+		var myPath;
+		// temp integer variables used in the calculations
+		var length, max, min, i, j;
+		// iterate through the open list until none are left
+		while(length = Open.length)
+		{
+			max = worldSize;
+			min = -1;
+			for(i = 0; i < length; i++)
+			{
+				if(Open[i].f < max)
+				{
+					max = Open[i].f;
+					min = i;
+				}
+			}
+			// grab the next node and remove it from Open array
+			myNode = Open.splice(min, 1)[0];
+			// is it the destination node?
+
+			//console.log("myNode.value: " + myNode.value + " | mypathEnd.value: " + mypathEnd.value);
+
+			if(myNode.value === mypathEnd.value)
+			{
+				//console.log("chopping down the final path node.");
+				myPath = Closed[Closed.push(myNode) - 1];
+				do
+				{
+					result.push([myPath.x, myPath.y]);
+				}
+				while (myPath = myPath.Parent);
+				// clear the working arrays
+				AStar = Closed = Open = [];
+				// we want to return start to finish
+				result.reverse();
+
+				// chop off the first one since that's the one you're standing on.
+				result.splice(0, 1);
+			}
+			else // not the destination
+			{
+				//console.log("non-final path node: " + myNode.value);
+
+				// find which nearby nodes are walkable
+				myNeighbours = Neighbours(myNode.x, myNode.y);
+				// test each one that hasn't been tried already
+				for(i = 0, j = myNeighbours.length; i < j; i++)
+				{
+					myPath = Node(myNode, myNeighbours[i]);
+					if (!AStar[myPath.value])
+					{
+						// estimated cost of this particular route so far
+						myPath.g = myNode.g + distanceFunction(myNeighbours[i], myNode);
+						// estimated cost of entire guessed route to the destination
+						myPath.f = myPath.g + distanceFunction(myNeighbours[i], mypathEnd);
+						// remember this new path for testing above
+						Open.push(myPath);
+						// mark this node in the world graph as visited
+						AStar[myPath.value] = true;
+
+					}
+				}
+				// remember this route as having no more untested options
+				Closed.push(myNode);
+			}
+		} // keep iterating until the Open list is empty
+
+		//console.log("result!: " + result);
+
+		return result;
+	}
+
+	// actually calculate the a-star path!
+	// this returns an array of coordinates
+	// that is empty if no path is possible
+	return calculatePath();
 
 } // end of findPath() function
 
