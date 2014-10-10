@@ -1,29 +1,17 @@
-== overall thoughts ==
+== general strategy ==
 
-- find all the health wells.
-- determine which one has the cleanest, shortest path between it and a mine.
-- find the shortest path to the diamond mine.
-	- make sure to take into account blocking obstacles.
-- take the mine
-- circle the health well, getting between the nearest enemy and the well.
-- attack the enemy coming in for health.
-- attack anyone attacking my mine.
-- run back to for health when less than 50 health.
-- chase anyone who runs from me.
-- avoid anyone camped at health wells
-- kill everyone wandering
+i've written a handful of functions to gather information about the map and my enemies.  mostly to figure out where they are and to build a pathfinding grid to use with some a* path prediction stuff.
 
+this is the general thinking the ai does each turn.
 
-== order of operations ==
-- establish a base
-	- most stuff in a 5x5 area
-	- as few trees as possible
-	- as many mines as possible
-	- centered on a health well
-	- probably just want the nearest health well.
+1. if i'm down to 40% health or less, run to the nearest health well.
+1. if i happen to be next to a health well and i'm down in health at all, top it off.
+1. establish the nearest health well as sort of my base of operations.
+1. check to see if any enemies are within 5 tiles of my new base.
+1. if they are moving towards my well, move to intercept their path to the health well.
+1. unless they're already there -- we ignore those guys who just sit there and heal.
+1. once i find a nearby badguy, i attack him.
+1. if there're no badguys, and i'm hurt at all (even a smidge), i just heal up at the health well.
+1. and, finally, if i'm healthy and there are no badguys anywhere nearby, i'll just go grab an enemy diamond mine.
 
-- first priority is to heal
-- second priority get between any enemies and my health well
-- third, chase and kill them
-- fourth, start grabbing mines
-
+the critical part to all of this?  the fact that i intercept enemies on their way to my health well.
