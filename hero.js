@@ -5,6 +5,10 @@ m3mnochBrain.myBase = []; // the coords of the healthwell base
 m3mnochBrain.pathData = []; // just a 2-dimensional array for pathfinding calcs.  true x,y coords.
 
 
+m3mnochBrain.log = function(str) {
+	//console.log(str);
+};
+
 m3mnochBrain.findBase = function(gameData) {
 	var nearestHealthWell = m3mnochBrain.findNearestHealthWellData(gameData);
 	m3mnochBrain.myBase = nearestHealthWell.coords;
@@ -127,8 +131,8 @@ m3mnochBrain.findPath = function (world, backwardsCoordsStart, backwardsCoordsEn
   var pathStart = [backwardsCoordsStart[1],backwardsCoordsStart[0]];
   var pathEnd = [backwardsCoordsEnd[1],backwardsCoordsEnd[0]];
 
-  //console.log("pathStart: " + pathStart);
-  //console.log("pathEnd: " + pathEnd);
+  //m3mnochBrain.log("pathStart: " + pathStart);
+  //m3mnochBrain.log("pathEnd: " + pathEnd);
 
   // shortcuts for speed
   var abs = Math.abs;
@@ -150,7 +154,7 @@ m3mnochBrain.findPath = function (world, backwardsCoordsStart, backwardsCoordsEn
   var worldHeight = world.length;
   var worldSize = worldWidth * worldHeight;
 
-  //console.log("worldSize: " + worldSize);
+  //m3mnochBrain.log("worldSize: " + worldSize);
 
   // which heuristic should we use?
   // default: no diagonals (Manhattan)
@@ -338,11 +342,11 @@ m3mnochBrain.findPath = function (world, backwardsCoordsStart, backwardsCoordsEn
 			myNode = Open.splice(min, 1)[0];
 			// is it the destination node?
 
-			//console.log("myNode.value: " + myNode.value + " | mypathEnd.value: " + mypathEnd.value);
+			//m3mnochBrain.log("myNode.value: " + myNode.value + " | mypathEnd.value: " + mypathEnd.value);
 
 			if(myNode.value === mypathEnd.value)
 			{
-				//console.log("chopping down the final path node.");
+				//m3mnochBrain.log("chopping down the final path node.");
 				myPath = Closed[Closed.push(myNode) - 1];
 				do
 				{
@@ -359,7 +363,7 @@ m3mnochBrain.findPath = function (world, backwardsCoordsStart, backwardsCoordsEn
 			}
 			else // not the destination
 			{
-				//console.log("non-final path node: " + myNode.value);
+				//m3mnochBrain.log("non-final path node: " + myNode.value);
 
 				// find which nearby nodes are walkable
 				myNeighbours = Neighbours(myNode.x, myNode.y);
@@ -385,7 +389,7 @@ m3mnochBrain.findPath = function (world, backwardsCoordsStart, backwardsCoordsEn
 			}
 		} // keep iterating until the Open list is empty
 
-		//console.log("result!: " + result);
+		//m3mnochBrain.log("result!: " + result);
 
 		return result;
 	}
@@ -405,7 +409,7 @@ var move = function(gameData, jsbHelpers) {
 	if (myHero.enemies === undefined) {
 		myHero.enemies = {};
 		myHero.myCurrentEnemy = "";
-		console.log("created enemy tracker");
+		//m3mnochBrain.log("created enemy tracker");
 	}
 
 	// default priority is diamond hunting
@@ -436,7 +440,7 @@ var move = function(gameData, jsbHelpers) {
 
 	var myPath = m3mnochBrain.findPath(m3mnochBrain.pathData, [myHero.distanceFromTop, myHero.distanceFromLeft], m3mnochBrain.myBase);
 	for (var i=0; i< myPath.length; i++) {
-		//console.log('--- node: (' + myPath[i][0] + "," + myPath[i][1] + ")");
+		//m3mnochBrain.log('--- node: (' + myPath[i][0] + "," + myPath[i][1] + ")");
 	}
 
 	var enemyPath = [];
@@ -448,7 +452,7 @@ var move = function(gameData, jsbHelpers) {
 			var worthMyTime = true;
 
 			if (myHero.enemies[gameData.heroes[i].name] === undefined) {
-				console.log('tracking enemy: ' + gameData.heroes[i].name);
+				//m3mnochBrain.log('tracking enemy: ' + gameData.heroes[i].name);
 				myHero.enemies[gameData.heroes[i].name] = {lastX:-1,lastY:-1};
 			}
 
@@ -459,22 +463,32 @@ var move = function(gameData, jsbHelpers) {
 					worthMyTime = false;
 				}
 			}
+
+			if (gameData.heroes[i].dead) {
+				worthMyTime = false;
+			}
+
 			
 			if (worthMyTime) {
 				enemyPreviousPath = m3mnochBrain.findPath(m3mnochBrain.pathData, [myHero.enemies[gameData.heroes[i].name].lastY, myHero.enemies[gameData.heroes[i].name].lastX], m3mnochBrain.myBase);
 				enemyCurrentPath = m3mnochBrain.findPath(m3mnochBrain.pathData, [gameData.heroes[i].distanceFromTop, gameData.heroes[i].distanceFromLeft], m3mnochBrain.myBase);
-				console.log('enemy path nodes: ' + enemyCurrentPath.length);
+				//m3mnochBrain.log('enemy path nodes: ' + enemyCurrentPath.length);
 
 				if (enemyCurrentPath.length > 0 && enemyCurrentPath.length < enemyPathTurnCount) {
 					// closest badguy!  see if we can get there in time.
 					enemyPathTurnCount = enemyCurrentPath.length;
 
 					var enemyBackwardsPathDest = [enemyCurrentPath[enemyCurrentPath.length - 1][1], enemyCurrentPath[enemyCurrentPath.length - 1][0]];
-					console.log('enemy assumed path target: ' + enemyBackwardsPathDest);
+					//m3mnochBrain.log('enemy assumed path target: ' + enemyBackwardsPathDest);
 					myPath = m3mnochBrain.findPath(m3mnochBrain.pathData, [myHero.distanceFromTop, myHero.distanceFromLeft], enemyBackwardsPathDest);
 
 					myHero.myCurrentEnemy = gameData.heroes[i].name;
-					priorities.intercept = m3mnochBrain.findDir([myHero.distanceFromLeft, myHero.distanceFromTop], myPath[0]);
+
+					if (myPath.length > 0) {
+						priorities.intercept = m3mnochBrain.findDir([myHero.distanceFromLeft, myHero.distanceFromTop], myPath[0]);
+					} else {
+						priorities.enemy = helpers.findNearestEnemy(gameData);
+					}
 
 					// it's a badguy!  and he's right next to me!  nuke him!
 					if (m3mnochBrain.objectNextToTile(myHero, gameData.heroes[i]) && !gameData.heroes[i].dead) {
@@ -488,22 +502,34 @@ var move = function(gameData, jsbHelpers) {
 		}
 	}
 
+	// if i'm hurt at all and don't have any badguys to fight, heal up, yo.
+	if (priorities.enemy == "stay" && priorities.intercept == "stay" && myHero.health < 100) {
+		priorities.health = helpers.findNearestHealthWell(gameData);
+	}
+
+
 	var myDir = "stay";
 
+	m3mnochBrain.log("--- STATS ---");
+	m3mnochBrain.log("diamondsEarned: " + myHero.diamondsEarned);
+	m3mnochBrain.log("damageDone: " + myHero.damageDone);
+	m3mnochBrain.log("heroesKilled: " + myHero.heroesKilled.length);
+	m3mnochBrain.log("gravesRobbed: " + myHero.gravesRobbed);
+
 	if (priorities.health != "stay") {
-		//console.log("--- priority: HEALTH");
+		m3mnochBrain.log("priority: HEALTH");
 		myDir = priorities.health;
 
 	} else if (priorities.enemy != "stay") {
-		//console.log("--- priority: ENEMY");
+		m3mnochBrain.log("priority: ENEMY");
 		myDir = priorities.enemy;
 
 	} else if (priorities.intercept != "stay") {
-		//console.log("--- priority: INTERCEPT");
+		m3mnochBrain.log("priority: INTERCEPT");
 		myDir = priorities.intercept;
 
 	} else if (priorities.diamond != "stay") {
-		//console.log("--- priority: DIAMOND");
+		m3mnochBrain.log("priority: DIAMOND");
 		myDir = priorities.diamond;
 	}
 
