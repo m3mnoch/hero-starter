@@ -6,12 +6,33 @@ m3mnochBrain.pathData = []; // just a 2-dimensional array for pathfinding calcs.
 
 
 m3mnochBrain.log = function(str) {
-	//console.log(str);
+	console.log(str);
 };
 
 m3mnochBrain.findBase = function(gameData) {
-	var nearestHealthWell = m3mnochBrain.findNearestHealthWellData(gameData);
-	m3mnochBrain.myBase = nearestHealthWell.coords;
+	// we really want a centralized health well.  wanna be in the mix the whole game.
+	// so, not in the outer two tile lanes
+	//var nearestHealthWell = m3mnochBrain.findNearestHealthWellData(gameData);
+	//m3mnochBrain.myBase = nearestHealthWell.coords;
+
+	var myHero = gameData.activeHero;
+	
+	var wellPath;
+	var minTileEdge = 2;
+	var maxTileEdge = 10;
+	var wellDistance = 9999;
+
+	for (var i=0; i< gameData.healthWells.length; i++) {
+		if (gameData.healthWells[i].distanceFromLeft >= minTileEdge && gameData.healthWells[i].distanceFromLeft <= maxTileEdge && gameData.healthWells[i].distanceFromTop >= minTileEdge && gameData.healthWells[i].distanceFromTop <= maxTileEdge) {
+			// this one is centralized
+			wellPath = m3mnochBrain.findPath(m3mnochBrain.pathData, [myHero.distanceFromTop, myHero.distanceFromLeft], [gameData.healthWells[i].distanceFromTop, gameData.healthWells[i].distanceFromLeft]);
+
+			if (wellDistance > wellPath.length) {
+				m3mnochBrain.myBase = [gameData.healthWells[i].distanceFromTop, gameData.healthWells[i].distanceFromLeft];
+				wellDistance = wellPath.length;
+			}
+		}
+	}
 };
 
 m3mnochBrain.objectInTileRadius = function(sourceTile, destTile, radius) {
@@ -294,12 +315,15 @@ m3mnochBrain.findPath = function (world, backwardsCoordsStart, backwardsCoordsEn
 		for (var i=0; i< tileNeighbors.length; i++) {
 			tileNeighbors[i].dist = ManhattanDistance(tileNeighbors[i], {x:pathStart[0], y:pathStart[1]});
 		}
-		var newTileLoc = tileNeighbors[0];
-		for (var i=1; i< tileNeighbors.length; i++) {
-			if (tileNeighbors[i].dist < newTileLoc.dist) newTileLoc = tileNeighbors[i];
+
+		if (tileNeighbors.length > 0) {
+			var newTileLoc = tileNeighbors[0];
+			for (var i=1; i< tileNeighbors.length; i++) {
+				if (tileNeighbors[i].dist < newTileLoc.dist) newTileLoc = tileNeighbors[i];
+			}
+			pathEnd[0] = newTileLoc.x;
+			pathEnd[1] = newTileLoc.y;
 		}
-		pathEnd[0] = newTileLoc.x;
-		pathEnd[1] = newTileLoc.y;
 	}
 
 
@@ -421,6 +445,9 @@ var move = function(gameData, jsbHelpers) {
 		diamond: currentPriority
 	}
 
+	m3mnochBrain.prepPathData(gameData);
+	m3mnochBrain.findBase(gameData);
+
 	// are we hurt?
 	var painThreshold = 41;
 
@@ -431,16 +458,11 @@ var move = function(gameData, jsbHelpers) {
 	// if we're hurt AND next to the well, just fill 'er up!
 	} else if (myHero.health < 100 && m3mnochBrain.objectNextToTile({distanceFromLeft:m3mnochBrain.myBase[1],distanceFromTop:m3mnochBrain.myBase[0]}, myHero)){
 		priorities.health = helpers.findNearestHealthWell(gameData);
-
 	}
-	
 
-	m3mnochBrain.prepPathData(gameData);
-	m3mnochBrain.findBase(gameData);
-
-	var myPath = m3mnochBrain.findPath(m3mnochBrain.pathData, [myHero.distanceFromTop, myHero.distanceFromLeft], m3mnochBrain.myBase);
-	for (var i=0; i< myPath.length; i++) {
-		//m3mnochBrain.log('--- node: (' + myPath[i][0] + "," + myPath[i][1] + ")");
+	var myPath = [];
+	if (m3mnochBrain.myBase !== undefined && m3mnochBrain.myBase.length > 0) {
+		myPath = m3mnochBrain.findPath(m3mnochBrain.pathData, [myHero.distanceFromTop, myHero.distanceFromLeft], m3mnochBrain.myBase);
 	}
 
 	var enemyPath = [];
@@ -452,8 +474,8 @@ var move = function(gameData, jsbHelpers) {
 			var worthMyTime = true;
 
 			if (myHero.enemies[gameData.heroes[i].name] === undefined) {
-				//m3mnochBrain.log('tracking enemy: ' + gameData.heroes[i].name);
-				myHero.enemies[gameData.heroes[i].name] = {lastX:-1,lastY:-1};
+				m3mnochBrain.log('tracking enemy: ' + gameData.heroes[i].name);
+				myHero.enemies[gameData.heroes[i].name] = {lastX:-1,lastY:-1,chasing:false};
 			}
 
 			// avoid jerks who just sit there and heal.
@@ -465,6 +487,10 @@ var move = function(gameData, jsbHelpers) {
 			}
 
 			if (gameData.heroes[i].dead) {
+				if (myHero.myCurrentEnemy == gameData.heroes[i].name) {
+					myHero.enemies[gameData.heroes[i].name].chasing = false;
+					myHero.myCurrentEnemy = "";
+				}
 				worthMyTime = false;
 			}
 
@@ -484,10 +510,13 @@ var move = function(gameData, jsbHelpers) {
 
 					myHero.myCurrentEnemy = gameData.heroes[i].name;
 
-					if (myPath.length > 0) {
+					if (myPath.length > 0 && !myHero.enemies[gameData.heroes[i].name].chasing) {
 						priorities.intercept = m3mnochBrain.findDir([myHero.distanceFromLeft, myHero.distanceFromTop], myPath[0]);
+						m3mnochBrain.log('moving to intercept: ' + myHero.myCurrentEnemy);
 					} else {
+						myHero.enemies[gameData.heroes[i].name].chasing = true;
 						priorities.enemy = helpers.findNearestEnemy(gameData);
+						m3mnochBrain.log('chasing: ' + myHero.myCurrentEnemy);
 					}
 
 					// it's a badguy!  and he's right next to me!  nuke him!
@@ -511,6 +540,7 @@ var move = function(gameData, jsbHelpers) {
 	var myDir = "stay";
 
 	m3mnochBrain.log("--- STATS ---");
+	if (myHero.myCurrentEnemy != "") m3mnochBrain.log("myHero.myCurrentEnemy: " + myHero.myCurrentEnemy + ", " + myHero.enemies[myHero.myCurrentEnemy].chasing);
 	m3mnochBrain.log("diamondsEarned: " + myHero.diamondsEarned);
 	m3mnochBrain.log("damageDone: " + myHero.damageDone);
 	m3mnochBrain.log("heroesKilled: " + myHero.heroesKilled.length);
@@ -531,6 +561,12 @@ var move = function(gameData, jsbHelpers) {
 	} else if (priorities.diamond != "stay") {
 		m3mnochBrain.log("priority: DIAMOND");
 		myDir = priorities.diamond;
+	}
+
+	// just because i hate uncertainty.
+	if (myDir === undefined) {
+		m3mnochBrain.log("dude!  i'm hemmed in!  gtfotw!");
+		myDir = "stay";
 	}
 
 	return myDir;
