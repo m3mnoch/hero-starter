@@ -12,8 +12,11 @@ m3mnochBrain.log = function(str) {
 m3mnochBrain.findBase = function(gameData) {
 	// we really want a centralized health well.  wanna be in the mix the whole game.
 	// so, not in the outer two tile lanes
-	//var nearestHealthWell = m3mnochBrain.findNearestHealthWellData(gameData);
-	//m3mnochBrain.myBase = nearestHealthWell.coords;
+	var nearestHealthWell = m3mnochBrain.findNearestHealthWellData(gameData);
+	m3mnochBrain.myBase = nearestHealthWell.coords;
+
+	return;
+	
 
 	var myHero = gameData.activeHero;
 	
