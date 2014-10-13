@@ -513,7 +513,7 @@ var move = function(gameData, jsbHelpers) {
 
 					myHero.myCurrentEnemy = gameData.heroes[i].name;
 
-					if (myPath.length > 0 && !myHero.enemies[gameData.heroes[i].name].chasing) {
+					if (myPath.length > 1 && !myHero.enemies[gameData.heroes[i].name].chasing) {
 						priorities.intercept = m3mnochBrain.findDir([myHero.distanceFromLeft, myHero.distanceFromTop], myPath[0]);
 						m3mnochBrain.log('moving to intercept: ' + myHero.myCurrentEnemy);
 					} else {
