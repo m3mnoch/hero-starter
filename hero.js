@@ -457,10 +457,6 @@ var move = function(gameData, jsbHelpers) {
 	// always heal if we're hurt badly.
 	if (myHero.health < painThreshold) {
 		priorities.health = helpers.findNearestHealthWell(gameData);
-
-	// if we're hurt AND next to the well, just fill 'er up!
-	} else if (myHero.health < 100 && m3mnochBrain.objectNextToTile({distanceFromLeft:m3mnochBrain.myBase[1],distanceFromTop:m3mnochBrain.myBase[0]}, myHero)){
-		priorities.health = helpers.findNearestHealthWell(gameData);
 	}
 
 	var myPath = [];
@@ -472,65 +468,92 @@ var move = function(gameData, jsbHelpers) {
 	var enemyPathTurnCount = 5; // we only care about them if they can get to our base within 5 turns.
 
 	// see if i can beat the badguys who might push up on my well, yo.
-	for (var i=0; i< gameData.heroes.length; i++) {
-		if (gameData.heroes[i].team !== myHero.team) {
-			var worthMyTime = true;
+	if (m3mnochBrain.myBase !== undefined && m3mnochBrain.myBase.length > 0) {
 
-			if (myHero.enemies[gameData.heroes[i].name] === undefined) {
-				m3mnochBrain.log('tracking enemy: ' + gameData.heroes[i].name);
-				myHero.enemies[gameData.heroes[i].name] = {lastX:-1,lastY:-1,chasing:false};
-			}
+		// if we're hurt AND next to the well, just fill 'er up!
+		if (myHero.health < 100 && m3mnochBrain.objectNextToTile({distanceFromLeft:m3mnochBrain.myBase[1],distanceFromTop:m3mnochBrain.myBase[0]}, myHero)) {
+			priorities.health = helpers.findNearestHealthWell(gameData);
+		}
 
-			// avoid jerks who just sit there and heal.
-			if (myHero.enemies[gameData.heroes[i].name].lastX == gameData.heroes[i].distanceFromLeft && myHero.enemies[gameData.heroes[i].name].lastY == gameData.heroes[i].distanceFromTop) {
-				// they've not moved and are sitting next to my well.
-				if (m3mnochBrain.objectNextToTile({distanceFromLeft:m3mnochBrain.myBase[1],distanceFromTop:m3mnochBrain.myBase[0]}, gameData.heroes[i])) {
+		for (var i=0; i< gameData.heroes.length; i++) {
+			if (gameData.heroes[i].team !== myHero.team) {
+				var worthMyTime = true;
+
+				// make sure i have data on them.
+				if (myHero.enemies[gameData.heroes[i].name] === undefined) {
+					m3mnochBrain.log('tracking enemy: ' + gameData.heroes[i].name);
+					myHero.enemies[gameData.heroes[i].name] = {lastX:-1, lastY:-1, chasing:false};
+				}
+
+				// avoid jerks who just sit on my well and heal.
+				if (m3mnochBrain.objectNextToTile({distanceFromLeft:m3mnochBrain.myBase[1], distanceFromTop:m3mnochBrain.myBase[0]}, gameData.heroes[i])) {
+					if (myHero.enemies[gameData.heroes[i].name].lastX == gameData.heroes[i].distanceFromLeft && myHero.enemies[gameData.heroes[i].name].lastY == gameData.heroes[i].distanceFromTop) {
+						// they've not moved and are sitting next to my well.
+						worthMyTime = false;
+					}
+				}
+
+				// oh, and we don't really care about the dead ones either
+				if (gameData.heroes[i].dead) {
+					if (myHero.myCurrentEnemy == gameData.heroes[i].name) {
+						myHero.enemies[gameData.heroes[i].name].chasing = false;
+						myHero.myCurrentEnemy = "";
+					}
 					worthMyTime = false;
 				}
-			}
 
-			if (gameData.heroes[i].dead) {
-				if (myHero.myCurrentEnemy == gameData.heroes[i].name) {
-					myHero.enemies[gameData.heroes[i].name].chasing = false;
-					myHero.myCurrentEnemy = "";
-				}
-				worthMyTime = false;
-			}
 
-			
-			if (worthMyTime) {
-				enemyPreviousPath = m3mnochBrain.findPath(m3mnochBrain.pathData, [myHero.enemies[gameData.heroes[i].name].lastY, myHero.enemies[gameData.heroes[i].name].lastX], m3mnochBrain.myBase);
-				enemyCurrentPath = m3mnochBrain.findPath(m3mnochBrain.pathData, [gameData.heroes[i].distanceFromTop, gameData.heroes[i].distanceFromLeft], m3mnochBrain.myBase);
-				//m3mnochBrain.log('enemy path nodes: ' + enemyCurrentPath.length);
+				if (worthMyTime) {
 
-				if (enemyCurrentPath.length > 0 && enemyCurrentPath.length < enemyPathTurnCount) {
-					// closest badguy!  see if we can get there in time.
-					enemyPathTurnCount = enemyCurrentPath.length;
+					// are we already chasing him?  but not too far!
+					if (myHero.enemies[gameData.heroes[i].name].chasing && myPath.length < 5) {
+						// keep chasing until he's dead.
+						priorities.enemy = helpers.findNearestEnemy(gameData);
 
-					var enemyBackwardsPathDest = [enemyCurrentPath[enemyCurrentPath.length - 1][1], enemyCurrentPath[enemyCurrentPath.length - 1][0]];
-					//m3mnochBrain.log('enemy assumed path target: ' + enemyBackwardsPathDest);
-					myPath = m3mnochBrain.findPath(m3mnochBrain.pathData, [myHero.distanceFromTop, myHero.distanceFromLeft], enemyBackwardsPathDest);
-
-					myHero.myCurrentEnemy = gameData.heroes[i].name;
-
-					if (myPath.length > 1 && !myHero.enemies[gameData.heroes[i].name].chasing) {
-						priorities.intercept = m3mnochBrain.findDir([myHero.distanceFromLeft, myHero.distanceFromTop], myPath[0]);
-						m3mnochBrain.log('moving to intercept: ' + myHero.myCurrentEnemy);
 					} else {
-						myHero.enemies[gameData.heroes[i].name].chasing = true;
-						priorities.enemy = helpers.findNearestEnemy(gameData);
-						m3mnochBrain.log('chasing: ' + myHero.myCurrentEnemy);
-					}
+						// do we need to?
+						myHero.enemies[gameData.heroes[i].name].chasing = false;
 
-					// it's a badguy!  and he's right next to me!  nuke him!
-					if (m3mnochBrain.objectNextToTile(myHero, gameData.heroes[i]) && !gameData.heroes[i].dead) {
-						priorities.enemy = helpers.findNearestEnemy(gameData);
+						//enemyPreviousPath = m3mnochBrain.findPath(m3mnochBrain.pathData, [myHero.enemies[gameData.heroes[i].name].lastY, myHero.enemies[gameData.heroes[i].name].lastX], m3mnochBrain.myBase);
+						enemyCurrentPath = m3mnochBrain.findPath(m3mnochBrain.pathData, [gameData.heroes[i].distanceFromTop, gameData.heroes[i].distanceFromLeft], m3mnochBrain.myBase);
+						//m3mnochBrain.log('enemy path nodes: ' + enemyCurrentPath.length);
+
+						// is he the closest guy to my well?
+						if (enemyCurrentPath.length > 0 && enemyCurrentPath.length < enemyPathTurnCount) {
+							// closest badguy!  see if we can get there in time.
+							myHero.myCurrentEnemy = gameData.heroes[i].name;
+							enemyPathTurnCount = enemyCurrentPath.length;
+
+							// if he's coming at my well, where is he likely headed?
+							var enemyBackwardsPathDest = [enemyCurrentPath[enemyCurrentPath.length - 1][1], enemyCurrentPath[enemyCurrentPath.length - 1][0]];
+							//m3mnochBrain.log('enemy assumed path target: ' + enemyBackwardsPathDest);
+
+							// how long for me to get to the intercept?
+							myPath = m3mnochBrain.findPath(m3mnochBrain.pathData, [myHero.distanceFromTop, myHero.distanceFromLeft], enemyBackwardsPathDest);
+
+							if (myPath.length <= 2) {
+								// i'm super-close.  just charge him.
+								myHero.enemies[gameData.heroes[i].name].chasing = true;
+
+								// we're assuming the nearest enemy is him.
+								priorities.enemy = helpers.findNearestEnemy(gameData);
+
+							} else {
+								priorities.intercept = m3mnochBrain.findDir([myHero.distanceFromLeft, myHero.distanceFromTop], myPath[0]);
+							}
+						}
+
+						// it's a badguy!  and he's right next to me!  nuke him!
+						if (m3mnochBrain.objectNextToTile(myHero, gameData.heroes[i]) && !gameData.heroes[i].dead) {
+							priorities.enemy = helpers.findNearestEnemy(gameData);
+						}
+
 					}
 				}
-			}
 
-			myHero.enemies[gameData.heroes[i].name].lastX = gameData.heroes[i].distanceFromLeft;
-			myHero.enemies[gameData.heroes[i].name].lastY = gameData.heroes[i].distanceFromTop;
+				myHero.enemies[gameData.heroes[i].name].lastX = gameData.heroes[i].distanceFromLeft;
+				myHero.enemies[gameData.heroes[i].name].lastY = gameData.heroes[i].distanceFromTop;
+			}
 		}
 	}
 
